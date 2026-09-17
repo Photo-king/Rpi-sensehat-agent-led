@@ -12,6 +12,7 @@ set -u
 HOST="${SENSE_HOST:-192.168.31.28}"
 PORT="${SENSE_PORT:-8765}"
 TOKEN="${SENSE_TOKEN:-}"
+SESSION="${SENSE_SESSION:-}"
 BASE="http://${HOST}:${PORT}"
 
 usage() {
@@ -21,11 +22,18 @@ usage() {
 
 api() {
   local path="$1" timeout="${2:-10}"
-  if [ -n "$TOKEN" ]; then
-    curl -sS --connect-timeout 1 --max-time "$timeout" "${BASE}${path}?t=${TOKEN}"
+  local query="" url
+  [ -n "$TOKEN" ] && query="${query}t=${TOKEN}&"
+  [ -n "$SESSION" ] && query="${query}session=${SESSION}&"
+  if [ -n "$query" ]; then
+    case "$path" in
+      *\?*) url="${BASE}${path}${query}" ;;
+      *)    url="${BASE}${path}?${query}" ;;
+    esac
   else
-    curl -sS --connect-timeout 1 --max-time "$timeout" "${BASE}${path}"
+    url="${BASE}${path}"
   fi
+  curl -sS --connect-timeout 1 --max-time "$timeout" "$url"
 }
 
 need() {

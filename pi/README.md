@@ -31,12 +31,20 @@
 ```
 GET /                            状态 JSON
 GET /ping
-GET /state/<idle|busy|done|confirm>
+GET /state/<idle|busy|done|confirm>[?session=<id>]
 GET /brightness/<0-8|up|down>
 GET /enable/<on|off|toggle>
 GET /ask?timeout=900             红灯常亮并阻塞等待摇杆回答 -> {"answer":"yes|no|timeout"}
 GET /answer/<yes|no>
 ```
+
+`session` 用来区分谁在报状态。服务端按会话分别记账，再按
+`confirm > busy > done` 的优先级汇总成一个灯效，所以开着多个窗口时：
+任何一路在等确认就是红灯，任何一路还在跑就至少是黄灯。
+
+- 不带 `session` 的 `busy/done/confirm` 算作 `manual`（手动档）。
+- 不带 `session` 的 `idle` = 清空所有会话（应急复位）。
+- `busy` 超过 1 小时没有新事件会自动过期，避免 app 崩掉后黄灯长亮。
 
 想加口令：编辑 `/etc/systemd/system/sensehat-led.service`，在 `ExecStart` 末尾加
 `--token 你的口令`，然后 `sudo systemctl daemon-reload && sudo systemctl restart sensehat-led`；

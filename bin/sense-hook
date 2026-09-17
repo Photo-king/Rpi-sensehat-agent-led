@@ -5,10 +5,14 @@
 #   UserPromptSubmit / PreToolUse / PostToolUse / 子agent / 压缩 -> 黄灯（处理中）
 #   PermissionRequest                                          -> 红灯（需要确认）
 #   Stop                                                       -> 绿灯（运行完毕）
-#   SessionStart / SessionEnd / Interrupt                      -> 灭灯
+#   SessionStart(/clear) / Interrupt                           -> 灭灯
+#   SessionEnd                                                 -> 不处理（见下）
 #
 # Codex 会把 hook 事件 JSON 从 stdin 送进来，本脚本读完（必须读）后立刻返回，
 # 永远不输出内容、永远 exit 0，避免影响 agent 本身。
+#
+# 每个事件都带上 session_id，树莓派按会话分别记账再汇总出灯效，
+# 所以开多个窗口时：只要有一个在等确认就红灯，有一个在跑就至少黄灯。
 set -u
 
 SENSE_BIN="${SENSE_BIN:-/Users/photo-king/Projects/agent-led/bin/sense}"
@@ -22,6 +26,9 @@ if [ -z "$event" ]; then
   event="$(printf '%s' "$flat" | sed -n 's/.*"hookEventName"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
 fi
 
+sid="$(printf '%s' "$flat" | sed -n 's/.*"session_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+sid="$(printf '%s' "${sid:-nosession}" | cut -c1-12)"
+
 case "$event" in
   UserPromptSubmit|PreToolUse|PostToolUse|SubagentStart|SubagentStop|PreCompact|PostCompact)
     state=busy ;;
@@ -29,12 +36,14 @@ case "$event" in
     state=confirm ;;
   Stop)
     state=done ;;
-  SessionStart|SessionEnd|Interrupt)
+  SessionStart|Interrupt)
     state=idle ;;
   *)
+    # SessionEnd 不参与灯效：桌面版每轮回复结束后都会补一个 SessionEnd，
+    # 如果让它灭灯，绿灯就只亮两秒。
     exit 0 ;;
 esac
 
-printf '%s %s -> %s\n' "$(date '+%F %T')" "${event:-unknown}" "$state" >>"$SENSE_HOOK_LOG" 2>/dev/null
+printf '%s [%s] %s -> %s\n' "$(date '+%F %T')" "$sid" "${event:-unknown}" "$state" >>"$SENSE_HOOK_LOG" 2>/dev/null
 
-SENSE_HTTP_TIMEOUT="${SENSE_HTTP_TIMEOUT:-3}" exec "$SENSE_BIN" "$state" >/dev/null 2>&1
+SENSE_HTTP_TIMEOUT="${SENSE_HTTP_TIMEOUT:-3}" SENSE_SESSION="$sid" exec "$SENSE_BIN" "$state" >/dev/null 2>&1

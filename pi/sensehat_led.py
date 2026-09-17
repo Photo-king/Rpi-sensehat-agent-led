@@ -59,6 +59,12 @@ REFRESH = 2.0            # 每 N 秒强制重写一次 framebuffer（防止驱�
 
 STATES = ("idle", "busy", "done", "confirm")
 
+# 汇总多个会话时谁说了算：需要确认 > 处理中 > 运行完毕
+PRIORITY = {"confirm": 3, "busy": 2, "done": 1}
+BUSY_TTL = 3600.0        # busy 超过这么久没有新事件就自愈，防止 app 崩了留下常亮黄灯
+ASK_KEY = "_ask"         # /ask 阻塞询问占用一个虚拟会话
+MANUAL_KEY = "manual"    # 不带 session 的命令（sense busy 之类）
+
 KEY_EV = 1
 KEYMAP = {103: "up", 108: "down", 105: "left", 106: "right", 28: "enter"}
 EVENT_FMT = "llHHi"      # aarch64: timeval(16) + type(2) + code(2) + value(4)
@@ -151,7 +157,7 @@ class Service:
         self.verbose = verbose
         self.lock = threading.RLock()
 
-        self.state = "idle"
+        self.sessions = {}       # session id -> (state, 最后更新时间)
         self.enabled = True
         self.brightness = max(1, min(8, brightness))
 
@@ -192,13 +198,36 @@ class Service:
             sys.stderr.flush()
 
     # ---------- 状态操作 ----------
-    def set_state(self, state):
+    def set_state(self, state, session=None):
+        """记录某个会话的状态。state=idle 表示这个会话退出汇总。"""
         if state not in STATES:
             return False
+        session = session or MANUAL_KEY
         with self.lock:
-            self.state = state
-        self.log("state -> %s" % state)
+            if state == "idle":
+                if session == MANUAL_KEY:
+                    self.sessions.clear()          # `sense idle` = 全部清空
+                else:
+                    self.sessions.pop(session, None)
+            else:
+                self.sessions[session] = (state, time.monotonic())
+        self.log("state[%s] -> %s" % (session, state))
         return True
+
+    def aggregate(self, now=None):
+        """把所有会话汇成一个灯效状态，多窗口时按优先级取最高的那个。"""
+        now = now or time.monotonic()
+        best, best_rank = "idle", 0
+        with self.lock:
+            for session, (state, ts) in list(self.sessions.items()):
+                if state == "busy" and now - ts > BUSY_TTL:
+                    self.sessions.pop(session, None)
+                    self.log("state[%s] 过期自动清除" % session)
+                    continue
+                rank = PRIORITY.get(state, 0)
+                if rank > best_rank:
+                    best, best_rank = state, rank
+        return best
 
     def set_brightness(self, value, feedback=True):
         try:
@@ -225,11 +254,15 @@ class Service:
         return enabled
 
     def status(self):
+        now = time.monotonic()
         with self.lock:
+            sessions = {key: "%s(%.0fs)" % (val[0], now - val[1])
+                        for key, val in self.sessions.items()}
             return {
                 "ok": True,
                 "version": VERSION,
-                "state": self.state,
+                "state": self.aggregate(now),
+                "sessions": sessions,
                 "enabled": self.enabled,
                 "brightness": self.brightness,
                 "ask_pending": self.ask_pending,
@@ -298,7 +331,7 @@ class Service:
             if self.ask_pending:
                 return {"ok": False, "error": "already asking"}
             self.ask_pending = True
-            self.state = "confirm"
+            self.sessions[ASK_KEY] = ("confirm", time.monotonic())
             self.ask_answer = None
             self.ask_event = threading.Event()
             event = self.ask_event
@@ -310,11 +343,9 @@ class Service:
             self.ask_pending = False
             self.ask_event = threading.Event()
             self.ask_answer = None
-            if answer == "yes":
-                self.state = "busy"
-            elif answer == "no":
-                self.state = "idle"
-            # 超时：保持 confirm，等你有空再按
+            if answer in ("yes", "no"):
+                self.sessions.pop(ASK_KEY, None)
+            # 超时：保留红灯，等你有空再按
         if answer == "yes":
             self._flash([GREEN] * NPIX, 0.5)
         elif answer == "no":
@@ -323,12 +354,12 @@ class Service:
             self._flash([YELLOW] * NPIX, 0.35)
         result = answer if answered else "timeout"
         self.log("ask -> %s" % result)
-        return {"ok": True, "answer": result, "state": self.state}
+        return {"ok": True, "answer": result, "state": self.aggregate()}
 
     # ---------- 渲染 ----------
     def _frame(self, now):
+        state = self.aggregate(now)
         with self.lock:
-            state = self.state
             enabled = self.enabled
             brightness = self.brightness
             ask = self.ask_pending
@@ -472,7 +503,8 @@ def make_handler(svc, token):
                     value = "confirm"
                 elif value in ("off", "clear", "none"):
                     value = "idle"
-                if not svc.set_state(value or ""):
+                session = query.get("session", [""])[0].strip()[:40] or None
+                if not svc.set_state(value or "", session):
                     return {"ok": False, "error": "state 必须是 %s" % "|".join(STATES)}
                 return svc.status()
             if head == "brightness":
