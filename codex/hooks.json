@@ -3,6 +3,7 @@
   "hooks": {
     "SessionStart": [
       {
+        "matcher": "^clear$",
         "hooks": [
           { "type": "command", "command": "/Users/photo-king/.codex/hooks/sense_led_hook.sh", "async": true, "timeout": 10 }
         ]
