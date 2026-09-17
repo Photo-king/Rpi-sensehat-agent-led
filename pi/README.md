@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | `busy` | 黄灯低频闪烁（0.65s 亮 / 0.65s 灭） | 处理中 |
 | `done` | 绿灯常亮 | 运行完毕 |
-| `confirm` | 红灯常亮（强制亮灯） | 需要确认 |
+| `confirm` | 红灯快闪（0.325s 亮 / 0.325s 灭，黄灯 2 倍速；强制亮灯） | 需要确认 |
 | `idle` | 全灭 | 空闲 |
 
 ## 摇杆
@@ -34,7 +34,7 @@ GET /ping
 GET /state/<idle|busy|done|confirm>[?session=<id>]
 GET /brightness/<0-8|up|down>
 GET /enable/<on|off|toggle>
-GET /ask?timeout=900             红灯常亮并阻塞等待摇杆回答 -> {"answer":"yes|no|timeout"}
+GET /ask?timeout=900             红灯快闪并阻塞等待摇杆回答 -> {"answer":"yes|no|timeout"}
 GET /answer/<yes|no>
 ```
 

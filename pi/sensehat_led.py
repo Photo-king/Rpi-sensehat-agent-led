@@ -54,6 +54,8 @@ BLUE = (0, 90, 255)
 
 BLINK_ON = 0.65          # 黄灯亮时长（秒）
 BLINK_OFF = 0.65         # 黄灯灭时长（秒）
+FAST_BLINK_ON = BLINK_ON / 2      # 红灯用 2 倍速闪，更醒目
+FAST_BLINK_OFF = BLINK_OFF / 2
 FPS = 20                 # 渲染频率
 REFRESH = 2.0            # 每 N 秒强制重写一次 framebuffer（防止驱动丢帧）
 
@@ -391,8 +393,9 @@ class Service:
             pixels = [YELLOW if lit else BLACK] * NPIX
         elif state == "done":
             pixels = [GREEN] * NPIX
-        else:  # confirm
-            pixels = [RED] * NPIX
+        else:  # confirm：红灯快闪，速度是黄灯的 2 倍
+            lit = (now % (FAST_BLINK_ON + FAST_BLINK_OFF)) < FAST_BLINK_ON
+            pixels = [RED if lit else BLACK] * NPIX
 
         if overlay:
             deadline, overlay_pixels, respect = overlay

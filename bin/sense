@@ -54,7 +54,7 @@ set_state() {
 case "${1:-}" in
   busy|working|run)      set_state busy "🟡 处理中（黄灯低频闪烁）" ;;
   done|ok|finish)        set_state done "🟢 运行完毕（绿灯常亮）" ;;
-  confirm|ask-me|wait)   set_state confirm "🔴 需要确认（红灯常亮）" ;;
+  confirm|ask-me|wait)   set_state confirm "🔴 需要确认（红灯快闪）" ;;
   idle|clear|off)        set_state idle "⚫️ 灭灯" ;;
   status)                need / 8 ;;
   ping)                  need /ping 5 ;;

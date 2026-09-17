@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | 🟡 黄灯低频闪烁 | 处理中 | 你提交 prompt、agent 调用工具、子 agent 运行、上下文压缩 |
 | 🟢 绿灯常亮 | 运行完毕 | agent 一轮回复结束（`Stop`） |
-| 🔴 红灯常亮 | 需要确认 | Codex 正要弹出授权/确认提示（`PermissionRequest`） |
+| 🔴 红灯快闪（黄灯 2 倍速） | 需要确认 | Codex 正要弹出授权/确认提示（`PermissionRequest`） |
 | ⚫️ 灭灯 | 空闲 | 被打断、`/clear`、手动 `sense idle` |
 
 红灯会无视开关强制亮起——需要你确认的那一刻不该被漏掉。
@@ -70,7 +70,7 @@ sense busy | done | confirm | idle     # 手动设置状态
 sense status                           # 看当前状态 JSON
 sense brightness up|down|1-8           # 调亮度（等价于摇杆 ↑↓）
 sense toggle                           # 开关指示灯（等价于按下摇杆）
-sense ask 600 "要执行 rm -rf 吗？"      # 红灯常亮，等你按摇杆回答，退出码 0=同意 1=拒绝 2=超时
+sense ask 600 "要执行 rm -rf 吗？"      # 红灯快闪，等你按摇杆回答，退出码 0=同意 1=拒绝 2=超时
 sense run -- pnpm test                 # 黄灯闪 → 绿灯(成功) / 红灯(失败)
 ```
 
