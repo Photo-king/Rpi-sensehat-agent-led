@@ -27,7 +27,7 @@
 ```
 Mac                                       树莓派 192.168.31.28
 ├── ~/.codex/hooks.json  ──┐              ├── systemd: sensehat-led.service
-├── ~/.codex/hooks/        │  HTTP :8765  ├── /home/linjinle123/sensehat-led/sensehat_led.py
+├── ~/.codex/hooks/        │  HTTP :8765  ├── /home/<pi-user>/sensehat-led/sensehat_led.py
 │   └── sense_led_hook.sh ─┼─────────────▶│   ├── 直写 /dev/fbX (8x8 RGB565)
 └── /opt/homebrew/bin/sense┘              │   └── 读 /dev/input/eventX 摇杆
    (→ bin/sense)                          └── 摇杆/亮度/开关都在这里处理
@@ -67,8 +67,8 @@ sense run -- pnpm test                 # 黄灯闪 → 绿灯(成功) / 红灯(�
 改完 `pi/` 下的文件后推送到树莓派：
 
 ```bash
-scp pi/sensehat_led.py pi/install.sh pi/README.md linjinle123@192.168.31.28:/tmp/sense-deploy/
-ssh linjinle123@192.168.31.28 'bash /tmp/sense-deploy/install.sh'
+scp pi/sensehat_led.py pi/install.sh pi/README.md pi@192.168.31.28:/tmp/sense-deploy/
+ssh pi@192.168.31.28 'bash /tmp/sense-deploy/install.sh'
 ```
 
 改完 `codex/hooks.json` 或 `bin/sense-hook` 后要同步到 `~/.codex/`，
@@ -79,11 +79,14 @@ cp bin/sense-hook ~/.codex/hooks/sense_led_hook.sh
 cp codex/hooks.json ~/.codex/hooks.json
 ```
 
+> 换一台 Mac 用的话，先把 `codex/hooks.json` 和 `bin/sense-hook` 里的
+> `/Users/photo-king/...` 绝对路径改成你自己的家目录。
+
 ## 排错
 
 ```bash
 sense ping                                  # 树莓派服务通不通
-ssh linjinle123@192.168.31.28 'journalctl -u sensehat-led -n 30'   # 服务日志
+ssh pi@192.168.31.28 'journalctl -u sensehat-led -n 30'   # 服务日志
 tail -f /tmp/sense-hook.log                 # hook 有没有被触发、映射成什么状态
 ```
 
@@ -95,6 +98,5 @@ tail -f /tmp/sense-hook.log                 # hook 有没有被触发、映射�
 
 ## 安全提示
 
-- 树莓派账号密码在本项目建立过程中以明文出现过，建议改成 SSH 密钥登录并更换密码：
-  `ssh-keygen -t ed25519` + `ssh-copy-id linjinle123@192.168.31.28`。
+- 建议用 SSH 密钥登录而不是密码：`ssh-keygen -t ed25519` + `ssh-copy-id pi@192.168.31.28`。
 - 8765 端口绑定在 `0.0.0.0`，局域网内任何设备都能改灯。介意的话给服务加 `--token`（见 `pi/README.md`）。

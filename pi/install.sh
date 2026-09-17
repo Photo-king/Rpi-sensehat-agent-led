@@ -2,7 +2,7 @@
 # 在树莓派上安装/更新 sensehat-led 服务
 set -euo pipefail
 
-APP_USER="${USER:-linjinle123}"
+APP_USER="${USER:-pi}"
 APP_HOME="$(getent passwd "$APP_USER" | cut -d: -f6)"
 APP_DIR="$APP_HOME/sensehat-led"
 SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
