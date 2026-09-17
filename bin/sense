@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# sense —— 从 Mac 控制局域网树莓派上的 Sense HAT 指示灯
+#
+#   sense busy | done | confirm | idle      设置状态
+#   sense ask [超时秒数] [提示文字]           红灯常亮，等你按摇杆确认（↑/按下=同意，↓=拒绝）
+#   sense run -- <命令>                     跑命令：黄灯闪烁 -> 绿灯(成功) / 红灯(失败)
+#   sense brightness up|down|<0-8>          亮度
+#   sense toggle | indicators on|off        指示灯开关（等于按摇杆中键）
+#   sense status | ping
+set -u
+
+HOST="${SENSE_HOST:-192.168.31.28}"
+PORT="${SENSE_PORT:-8765}"
+TOKEN="${SENSE_TOKEN:-}"
+BASE="http://${HOST}:${PORT}"
+
+usage() {
+  sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
+  exit "${1:-0}"
+}
+
+api() {
+  local path="$1" timeout="${2:-10}"
+  if [ -n "$TOKEN" ]; then
+    curl -sS --connect-timeout 1 --max-time "$timeout" "${BASE}${path}?t=${TOKEN}"
+  else
+    curl -sS --connect-timeout 1 --max-time "$timeout" "${BASE}${path}"
+  fi
+}
+
+need() {
+  local out
+  out="$(api "$1" "${2:-${SENSE_HTTP_TIMEOUT:-10}}")" || {
+    echo "sense: 连不上 ${BASE}（树莓派是不是没开机 / 服务没起？）" >&2
+    return 69
+  }
+  printf '%s\n' "$out"
+}
+
+set_state() {
+  need "/state/$1" >/dev/null && echo "$2"
+}
+
+case "${1:-}" in
+  busy|working|run)      set_state busy "🟡 处理中（黄灯低频闪烁）" ;;
+  done|ok|finish)        set_state done "🟢 运行完毕（绿灯常亮）" ;;
+  confirm|ask-me|wait)   set_state confirm "🔴 需要确认（红灯常亮）" ;;
+  idle|clear|off)        set_state idle "⚫️ 灭灯" ;;
+  status)                need / 8 ;;
+  ping)                  need /ping 5 ;;
+  brightness)
+    need "/brightness/${2:-up}" >/dev/null && echo "亮度 -> ${2:-up}" ;;
+  toggle)                need /enable/toggle >/dev/null && echo "指示灯开关已切换" ;;
+  indicators|enable)
+    need "/enable/${2:-toggle}" >/dev/null && echo "指示灯 -> ${2:-toggle}" ;;
+  ask)
+    timeout="${2:-900}"
+    shift 2 2>/dev/null || shift $#
+    [ "$#" -gt 0 ] && echo "🔴 需要确认：$*" >&2
+    out="$(need "/ask?timeout=${timeout}" "$((timeout + 30))")" || exit 2
+    ans="$(printf '%s' "$out" | sed -n 's/.*"answer": *"\([^"]*\)".*/\1/p')"
+    case "$ans" in
+      yes) echo "✅ 你按了同意"; exit 0 ;;
+      no)  echo "⛔️ 你按了拒绝"; exit 1 ;;
+      *)   echo "⌛️ 等待超时，灯保持红灯；按摇杆 ↑/● 同意，↓ 拒绝"; exit 2 ;;
+    esac ;;
+  run)
+    shift
+    [ "${1:-}" = "--" ] && shift
+    [ "$#" -gt 0 ] || usage 64
+    api /state/busy >/dev/null 2>&1
+    "$@"
+    rc=$?
+    if [ "$rc" -eq 0 ]; then api /state/done >/dev/null 2>&1; else api /state/confirm >/dev/null 2>&1; fi
+    exit "$rc" ;;
+  -h|--help|help|"")     usage 0 ;;
+  *) echo "sense: 未知命令 '$1'" >&2; usage 64 ;;
+esac

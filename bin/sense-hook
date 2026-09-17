@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Codex hook -> Sense HAT 状态灯
+#
+# 事件映射:
+#   UserPromptSubmit / PreToolUse / PostToolUse / 子agent / 压缩 -> 黄灯（处理中）
+#   PermissionRequest                                          -> 红灯（需要确认）
+#   Stop                                                       -> 绿灯（运行完毕）
+#   SessionStart / SessionEnd / Interrupt                      -> 灭灯
+#
+# Codex 会把 hook 事件 JSON 从 stdin 送进来，本脚本读完（必须读）后立刻返回，
+# 永远不输出内容、永远 exit 0，避免影响 agent 本身。
+set -u
+
+SENSE_BIN="${SENSE_BIN:-/Users/photo-king/Projects/agent-led/bin/sense}"
+SENSE_HOOK_LOG="${SENSE_HOOK_LOG:-/tmp/sense-hook.log}"
+
+payload="$(cat 2>/dev/null || true)"
+flat="$(printf '%s' "$payload" | tr '\n\r' '  ')"
+
+event="$(printf '%s' "$flat" | sed -n 's/.*"hook_event_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+if [ -z "$event" ]; then
+  event="$(printf '%s' "$flat" | sed -n 's/.*"hookEventName"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+fi
+
+case "$event" in
+  UserPromptSubmit|PreToolUse|PostToolUse|SubagentStart|SubagentStop|PreCompact|PostCompact)
+    state=busy ;;
+  PermissionRequest)
+    state=confirm ;;
+  Stop)
+    state=done ;;
+  SessionStart|SessionEnd|Interrupt)
+    state=idle ;;
+  *)
+    exit 0 ;;
+esac
+
+printf '%s %s -> %s\n' "$(date '+%F %T')" "${event:-unknown}" "$state" >>"$SENSE_HOOK_LOG" 2>/dev/null
+
+SENSE_HTTP_TIMEOUT="${SENSE_HTTP_TIMEOUT:-3}" exec "$SENSE_BIN" "$state" >/dev/null 2>&1

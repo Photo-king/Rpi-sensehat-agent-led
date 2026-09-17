@@ -1,0 +1,61 @@
+{
+  "description": "Sense HAT 状态灯：黄=处理中 / 绿=运行完毕 / 红=需要确认",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "/Users/photo-king/.codex/hooks/sense_led_hook.sh", "async": true, "timeout": 10 }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "/Users/photo-king/.codex/hooks/sense_led_hook.sh", "async": true, "timeout": 10 }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          { "type": "command", "command": "/Users/photo-king/.codex/hooks/sense_led_hook.sh", "async": true, "timeout": 10 }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          { "type": "command", "command": "/Users/photo-king/.codex/hooks/sense_led_hook.sh", "async": true, "timeout": 10 }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          { "type": "command", "command": "/Users/photo-king/.codex/hooks/sense_led_hook.sh", "async": true, "timeout": 10 }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "/Users/photo-king/.codex/hooks/sense_led_hook.sh", "async": true, "timeout": 10 }
+        ]
+      }
+    ],
+    "Interrupt": [
+      {
+        "hooks": [
+          { "type": "command", "command": "/Users/photo-king/.codex/hooks/sense_led_hook.sh", "async": true, "timeout": 3 }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          { "type": "command", "command": "/Users/photo-king/.codex/hooks/sense_led_hook.sh", "async": true, "timeout": 3 }
+        ]
+      }
+    ]
+  }
+}
