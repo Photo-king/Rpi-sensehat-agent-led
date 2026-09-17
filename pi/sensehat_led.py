@@ -198,19 +198,35 @@ class Service:
             sys.stderr.flush()
 
     # ---------- 状态操作 ----------
-    def set_state(self, state, session=None):
-        """记录某个会话的状态。state=idle 表示这个会话退出汇总。"""
+    def set_state(self, state, session=None, event=None):
+        """记录某个会话的状态。state=idle 表示这个会话退出汇总。
+
+        这里要做两件防竞态的事——PreToolUse / PermissionRequest / PostToolUse
+        是并行发出来的，到达顺序不保证：
+          1. 授权提示还挂着时（confirm），不允许 busy 把它压回黄灯；
+             只有 PostToolUse（工具真的跑起来了 = 授权已处理）或 Stop 才能解除。
+          2. 一轮刚结束（done）的头两秒，忽略掉队的 PostToolUse，别把绿灯又染黄。
+        """
         if state not in STATES:
             return False
         session = session or MANUAL_KEY
+        now = time.monotonic()
         with self.lock:
+            current = self.sessions.get(session)
+            if state == "busy" and current:
+                cur_state, cur_ts = current
+                if cur_state == "confirm" and event != "PostToolUse":
+                    self.log("state[%s] 保持 confirm，忽略 %s" % (session, event or "busy"))
+                    return True
+                if cur_state == "done" and event == "PostToolUse" and now - cur_ts < 2.0:
+                    return True
             if state == "idle":
                 if session == MANUAL_KEY:
                     self.sessions.clear()          # `sense idle` = 全部清空
                 else:
                     self.sessions.pop(session, None)
             else:
-                self.sessions[session] = (state, time.monotonic())
+                self.sessions[session] = (state, now)
         self.log("state[%s] -> %s" % (session, state))
         return True
 
@@ -504,7 +520,8 @@ def make_handler(svc, token):
                 elif value in ("off", "clear", "none"):
                     value = "idle"
                 session = query.get("session", [""])[0].strip()[:40] or None
-                if not svc.set_state(value or "", session):
+                event = query.get("event", [""])[0].strip()[:24] or None
+                if not svc.set_state(value or "", session, event):
                     return {"ok": False, "error": "state 必须是 %s" % "|".join(STATES)}
                 return svc.status()
             if head == "brightness":

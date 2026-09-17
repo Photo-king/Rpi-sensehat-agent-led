@@ -46,4 +46,7 @@ esac
 
 printf '%s [%s] %s -> %s\n' "$(date '+%F %T')" "$sid" "${event:-unknown}" "$state" >>"$SENSE_HOOK_LOG" 2>/dev/null
 
-SENSE_HTTP_TIMEOUT="${SENSE_HTTP_TIMEOUT:-3}" SENSE_SESSION="$sid" exec "$SENSE_BIN" "$state" >/dev/null 2>&1
+export SENSE_HTTP_TIMEOUT="${SENSE_HTTP_TIMEOUT:-3}"
+export SENSE_SESSION="$sid"
+export SENSE_EVENT="${event:-}"
+exec "$SENSE_BIN" "$state" >/dev/null 2>&1
